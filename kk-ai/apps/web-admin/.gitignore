@@ -1,0 +1,9 @@
+# Vite
+.vite/
+vite.config.ts.timestamp-*
+
+# React DevTools
+.react-router/
+
+# Local env files
+.env.*.local

@@ -27,6 +27,8 @@ module.exports = {
     "scope-empty": [0],
     // Subject 不能为空
     "subject-empty": [2, "never"],
+    // Subject 大小写不限制（支持中英文混排）
+    "subject-case": [0],
     // Subject 必须以动词开头，描述做了什么
     "subject-full-stop": [2, "never", "."],
     // Subject 长度限制

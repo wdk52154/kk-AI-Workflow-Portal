@@ -11,9 +11,13 @@
     "lint": "echo 'No lint configured'"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.2.3",
+    "@ant-design/pro-components": "^2.8.10",
     "@kk-ai/types": "workspace:*",
     "@kk-ai/ui": "workspace:*",
     "@kk-ai/utils": "workspace:*",
+    "antd": "^6.4.3",
+    "lucide-react": "^1.16.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

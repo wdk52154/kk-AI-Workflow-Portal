@@ -1,6 +1,16 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": ["**/.env.*local"],
+  "globalEnv": [
+    "NODE_ENV",
+    "MCPHUB_REDIS_URL",
+    "MCPHUB_DEBUG",
+    "MCPHUB_LOG_LEVEL"
+  ],
+  "remoteCache": {
+    "enabled": false,
+    "signature": false
+  },
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

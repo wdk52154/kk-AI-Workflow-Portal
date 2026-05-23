@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "kk-ai/**"
+      - ".github/workflows/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "kk-ai/**"
+      - ".github/workflows/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+      backend: ${{ steps.changes.outputs.backend }}
+      docs: ${{ steps.changes.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            frontend:
+              - 'kk-ai/apps/web-admin/**'
+              - 'kk-ai/packages/ui/**'
+              - 'kk-ai/packages/types/**'
+              - 'kk-ai/packages/utils/**'
+            backend:
+              - 'kk-ai/services/**'
+            docs:
+              - 'kk-ai/docs/**'
+              - '**.md'
+
+  quality-gate:
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Environment
+        uses: ./kk-ai/.github/actions/setup
+
+      - name: Setup Turbo Cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Lint Check
+        run: cd kk-ai && pnpm run lint
+
+      - name: Type Check
+        run: cd kk-ai && pnpm run typecheck
+
+      - name: Build
+        run: cd kk-ai && pnpm run build
+
+  frontend-test:
+    needs: [changes, quality-gate]
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./kk-ai/.github/actions/setup
+
+      - name: Run Frontend Unit Tests
+        run: cd kk-ai/apps/web-admin && pnpm run test:unit
+
+      - name: Upload Frontend Coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./kk-ai/apps/web-admin/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+
+  backend-test:
+    needs: [changes, quality-gate]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./kk-ai/.github/actions/setup
+
+      - name: Run Backend Unit Tests
+        run: |
+          cd kk-ai/services/mcp-hub
+          export MCPHUB_REDIS_URL=redis://localhost:6379/0
+          pytest --cov=app --cov-report=xml --cov-report=term
+
+      - name: Upload Backend Coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./kk-ai/services/mcp-hub/coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+  docs-check:
+    needs: changes
+    if: ${{ needs.changes.outputs.docs == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Markdown Lint
+        uses: DavidAnson/markdownlint-cli2-action@v16
+        with:
+          globs: "kk-ai/docs/**/*.md"
+          config: ".markdownlint.json"
+        continue-on-error: true

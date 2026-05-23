@@ -140,7 +140,7 @@ export default function App({ theme, resolvedTheme, setTheme, toggleTheme }: App
       }}
       pageTitleRender={() => '中台管理后台'}
       headerContentRender={() => (
-        <Space direction="vertical" size={0}>
+        <Space size={24}>
           <span style={{ fontSize: 20, fontWeight: 700 }}>中台管理后台</span>
           <Space size={12} style={{ marginTop: 4 }}>
             <span style={{ color: '#8c8c8c', fontSize: 13 }}>

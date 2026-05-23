@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  dev:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu
+    volumes:
+      - ..:/workspace:cached
+      - pnpm-store:/home/vscode/.local/share/pnpm/store
+      - pip-cache:/home/vscode/.cache/pip
+    command: sleep infinity
+    environment:
+      - MCPHUB_REDIS_URL=redis://redis:6379/0
+      - PNPM_HOME=/home/vscode/.local/share/pnpm
+      - PATH=/home/vscode/.local/share/pnpm:$PATH
+    depends_on:
+      redis:
+        condition: service_healthy
+    network_mode: service:redis
+
+volumes:
+  redis-data:
+  pnpm-store:
+  pip-cache:

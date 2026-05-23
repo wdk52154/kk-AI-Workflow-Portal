@@ -1,0 +1,55 @@
+{
+  "name": "康康 AI 开发环境",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.13",
+      "installTools": true
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "bradlc.vscode-tailwindcss",
+        "github.copilot",
+        "github.copilot-chat",
+        "eamodio.gitlens",
+        "yoavbls.pretty-ts-errors",
+        "antfu.iconify",
+        "mikestead.dotenv"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.typeCheckingMode": "strict"
+      }
+    }
+  },
+  "remoteUser": "vscode",
+  "forwardPorts": [5173, 8000, 6379, 9323],
+  "portsAttributes": {
+    "5173": { "label": "web-admin", "onAutoForward": "notify" },
+    "8000": { "label": "mcp-hub", "onAutoForward": "notify" },
+    "6379": { "label": "redis", "onAutoForward": "silent" },
+    "9323": { "label": "playwright-report", "onAutoForward": "openBrowser" }
+  }
+}

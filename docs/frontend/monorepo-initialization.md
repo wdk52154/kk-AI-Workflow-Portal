@@ -1,7 +1,7 @@
 # AI 前端 Monorepo 初始化文档分析
 
 > 项目：康康 AI 全栈系统（kk-ai）  
-> 文档版本：v1.0  
+> 文档版本：v1.1（CSS Modules 方案）  
 > 适用范围：前端 Monorepo 架构设计、初始化与团队协作规范
 
 ---
@@ -14,6 +14,7 @@
 - **统一管控**：依赖版本、构建流程、代码规范集中管理
 - **独立部署**：各应用（web-admin、未来扩展）可独立构建与发布
 - **类型安全**：全链路 TypeScript 严格模式覆盖
+- **样式隔离**：CSS Modules 保证组件样式作用域隔离
 
 ---
 
@@ -24,10 +25,11 @@
 | 包管理 | pnpm | 9.x | workspace 依赖管理与磁盘去重 |
 | 构建编排 | Turbo | 2.x | 任务缓存与并行构建加速 |
 | 前端框架 | React | 18.x | UI 组件与页面渲染 |
-| 构建工具 | Vite | 5.x | 应用与组件库的快速构建 |
+| 构建工具 | Vite | 5.x | 应用与组件库的快速构建（内置 CSS Modules 支持） |
 | 类型系统 | TypeScript | 5.4+ | 全链路类型检查 |
-| 样式方案 | Tailwind CSS | 3.4+ | 原子化 CSS + 主题配置 |
-| 组件库 | shadcn/ui | - | Headless UI 组件基座 |
+| 样式方案 | CSS Modules | 原生 | 组件级样式隔离，避免全局污染 |
+| 主题系统 | CSS Variables | 原生 | 亮色/暗色主题动态切换 |
+| 类名合并 | clsx | 2.x | 条件类名组合工具 |
 
 ---
 
@@ -38,21 +40,35 @@ kk-ai/                          # Monorepo 根目录
 ├── apps/
 │   └── web-admin/              # 管理后台应用（Vite + React）
 │       ├── src/
-│       ├── tsconfig.json       # 继承根配置，noEmit 模式
+│       │   ├── App.tsx
+│       │   ├── App.module.css          # 页面级 CSS Modules
+│       │   ├── css-modules.d.ts        # CSS Modules 类型声明
+│       │   ├── main.tsx
+│       │   └── index.css               # 全局样式入口
+│       ├── tsconfig.json
 │       ├── vite.config.ts
 │       └── package.json
 ├── packages/
-│   ├── types/                  # 共享类型定义（纯 TS，输出 .d.ts）
-│   ├── ui/                     # 共享 UI 组件库（Vite Library Mode）
-│   │   ├── src/components/
-│   │   ├── src/lib/
-│   │   └── vite.config.ts      # vite-plugin-dts 生成声明文件
+│   ├── types/                  # 共享类型定义（纯 TS）
+│   ├── ui/                     # 共享 UI 组件库
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   │   ├── button.tsx
+│   │   │   │   ├── button.module.css   # 组件级 CSS Modules
+│   │   │   │   └── theme-provider.tsx
+│   │   │   ├── lib/
+│   │   │   │   └── utils.ts            # cn() 工具（clsx 版）
+│   │   │   ├── styles/
+│   │   │   │   ├── globals.css         # CSS Variables 设计系统
+│   │   │   │   └── css-modules.d.ts    # CSS Modules 类型声明
+│   │   │   └── index.ts
+│   │   └── vite.config.ts
 │   └── utils/                  # 共享工具函数（纯 TS）
-├── pnpm-workspace.yaml         # Workspace 范围声明
-├── turbo.json                  # 任务管道配置
-├── tsconfig.base.json          # 共享 TS 基础配置
-├── package.json                # 根依赖与 scripts
-└── .gitignore                  # 根级忽略规则
+├── pnpm-workspace.yaml
+├── turbo.json
+├── tsconfig.base.json
+├── package.json
+└── .gitignore
 ```
 
 ### 3.1 Workspace 声明（pnpm-workspace.yaml）
@@ -110,72 +126,164 @@ tsconfig.base.json          # 共享核心规则
 }
 ```
 
-**关键选项说明**：
-
-| 选项 | 作用 | 说明 |
-|------|------|------|
-| `strict: true` | 开启所有严格类型检查 | 包含 `noImplicitAny`、`strictNullChecks` 等 8 项 |
-| `noUnusedLocals/Parameters` | 未使用变量/参数报错 | 强制代码整洁，减少冗余 |
-| `moduleResolution: bundler` | 适配 Vite/webpack | 支持 `exports` 字段、无扩展名导入 |
-| `declaration + declarationMap` | 输出类型声明 | 包级别需要，应用级关闭 |
-
-### 4.3 应用级覆盖（apps/web-admin/tsconfig.json）
-
-```json
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
-    "declaration": false,
-    "declarationMap": false
-  },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
-}
-```
-
-**覆盖逻辑**：
-- `noEmit: true`：应用不输出 JS，仅做类型检查，由 Vite 负责编译
-- `allowImportingTsExtensions: true`：允许 `.ts`/`.tsx` 扩展名导入（需配合 `noEmit`）
-- 关闭 `declaration`：应用不需要对外输出类型声明
-
-### 4.4 库级覆盖（packages/ui/tsconfig.json）
-
-```json
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "outDir": "./dist",
-    "rootDir": "./src"
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-```
-
-**覆盖逻辑**：
-- 保留基座的 `declaration: true`，输出 `.d.ts` + `.d.ts.map`
-- `outDir` / `rootDir`：控制编译输出结构
-
-### 4.5 ⚠️ 重要约束
+### 4.3 ⚠️ 重要约束
 
 `allowImportingTsExtensions` **只能在 `noEmit` 或 `emitDeclarationOnly` 时使用**。因此：
 
 - ✅ 应用级（`noEmit: true`）可以使用
 - ❌ 库级（需要输出完整 JS）**不能**在基座中开启，否则 `tsc` 编译报错
 
+### 4.4 CSS Modules 类型声明
+
+每个使用 CSS Modules 的项目需创建类型声明文件：
+
+```ts
+// src/css-modules.d.ts（或 packages/ui/src/styles/css-modules.d.ts）
+declare module '*.module.css' {
+  const classes: { [key: string]: string };
+  export default classes;
+}
+```
+
+确保 `.d.ts` 文件位于 `tsconfig.json` 的 `include` 范围内（如 `src/**/*`）。
+
 ---
 
-## 五、忽略文件策略（分层 .gitignore）
+## 五、样式方案：CSS Modules + CSS Variables
+
+### 5.1 为什么不用 Tailwind CSS？
+
+| 维度 | Tailwind CSS | CSS Modules |
+|------|-------------|-------------|
+| 样式隔离 | 依赖类名约定，易冲突 | 编译时自动哈希，天然隔离 |
+| 可读性 | 类名冗长，HTML 臃肿 | 语义化命名，结构清晰 |
+| 调试 | 需映射原子类到实际样式 | 浏览器 DevTools 直接查看 |
+| 构建体积 | 需 PurgeCSS 优化 | 仅打包使用到的样式 |
+| 团队协作 | 需全员熟悉工具类命名 | 标准 CSS，上手零成本 |
+
+### 5.2 设计系统：CSS Variables
+
+全局主题变量统一定义在 `packages/ui/src/styles/globals.css`：
+
+```css
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #18181b;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  /* ... 暗色主题变量覆盖 */
+}
+```
+
+**主题切换原理**：`theme-provider.tsx` 通过切换 `document.documentElement` 的 `className`（`light` / `dark`），CSS Variables 自动响应变化。
+
+### 5.3 组件样式：CSS Modules
+
+以 Button 组件为例：
+
+```tsx
+// packages/ui/src/components/button.tsx
+import styles from './button.module.css';
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = 'default', size = 'md', className, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        className={cn(styles.button, styles[variant], styles[size], className)}
+        {...props}
+      />
+    );
+  }
+);
+```
+
+```css
+/* packages/ui/src/components/button.module.css */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.default {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.default:hover:not(:disabled) {
+  background-color: hsl(from var(--primary) h s calc(l - 0.1));
+}
+
+.sm { height: 2rem; padding: 0 0.75rem; font-size: 0.75rem; }
+.md { height: 2.5rem; padding: 0.5rem 1rem; }
+```
+
+**CSS Modules 优势**：
+- `.button` 编译后变为 `.button_hash123`，避免全局命名冲突
+- 支持 `:hover`、`:focus-visible`、`@keyframes` 等原生 CSS 特性
+- Vite 原生支持，无需额外配置
+
+### 5.4 类名合并工具（cn）
+
+```ts
+// packages/ui/src/lib/utils.ts
+import { type ClassValue, clsx } from 'clsx';
+
+export function cn(...inputs: ClassValue[]) {
+  return clsx(inputs);
+}
+```
+
+**说明**：移除 `tailwind-merge` 后，`cn` 仅使用 `clsx` 处理条件类名和数组展开。在 CSS Modules 方案中，样式冲突由模块作用域天然解决，无需运行时合并类名优先级。
+
+### 5.5 全局样式导入
+
+应用入口导入 UI 库的全局 CSS Variables：
+
+```css
+/* apps/web-admin/src/index.css */
+@import '@kk-ai/ui/globals.css';
+```
+
+`packages/ui/package.json` 配置 exports：
+
+```json
+{
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./globals.css": "./src/styles/globals.css"
+  }
+}
+```
+
+---
+
+## 六、忽略文件策略（分层 .gitignore）
 
 Monorepo 采用 **根级通用 + 子项目特定** 的分层策略：
 
-### 5.1 根级 .gitignore（kk-ai/.gitignore）
-
-负责 Monorepo 全局忽略：
+### 6.1 根级 .gitignore（kk-ai/.gitignore）
 
 ```gitignore
 # Dependencies
@@ -213,9 +321,7 @@ coverage/
 *.cache
 ```
 
-### 5.2 应用级 .gitignore（apps/web-admin/.gitignore）
-
-负责前端特定忽略：
+### 6.2 应用级 .gitignore（apps/web-admin/.gitignore）
 
 ```gitignore
 # Vite
@@ -226,17 +332,7 @@ vite.config.ts.timestamp-*
 .env.*.local
 ```
 
-### 5.3 包级 .gitignore（packages/*/.gitignore）
-
-```gitignore
-# Build output
-dist/
-
-# Test output
-coverage/
-```
-
-### 5.4 分层策略的优势
+### 6.3 分层策略的优势
 
 | 层级 | 职责 | 示例 |
 |------|------|------|
@@ -246,9 +342,9 @@ coverage/
 
 ---
 
-## 六、Turbo 任务管道配置
+## 七、Turbo 任务管道配置
 
-### 6.1 turbo.json
+### 7.1 turbo.json
 
 ```json
 {
@@ -271,7 +367,7 @@ coverage/
 }
 ```
 
-### 6.2 任务依赖解析
+### 7.2 任务依赖解析
 
 ```
 typecheck ──> ^build ──> 先构建所有依赖包（types/utils/ui）
@@ -280,84 +376,35 @@ typecheck ──> ^build ──> 先构建所有依赖包（types/utils/ui）
 build ──> ^build ──> 按依赖拓扑顺序构建（types → utils → ui → web-admin）
 ```
 
-**Turbo 缓存机制**：
-- 任务输入（源码 + 配置）未变时，直接复用缓存结果
-- `dev` 任务标记为 `persistent`，不会与其他任务并行冲突
-
 ---
 
-## 七、共享包设计
+## 八、共享包设计
 
-### 7.1 @kk-ai/types（类型定义包）
+### 8.1 @kk-ai/types（类型定义包）
 
-```ts
-// packages/types/src/index.ts
-export interface Theme {
-  mode: 'light' | 'dark' | 'system';
-  primaryColor: string;
-}
+纯类型定义，无运行时代码，构建后仅输出 `.d.ts`。
 
-export interface User {
-  id: string;
-  name: string;
-  role: 'admin' | 'editor';
-}
-```
-
-**特点**：纯类型定义，无运行时代码，构建后仅输出 `.d.ts`。
-
-### 7.2 @kk-ai/ui（UI 组件库）
+### 8.2 @kk-ai/ui（UI 组件库）
 
 ```ts
 // packages/ui/src/index.ts
-export { Button } from './components/button';
-export { ThemeProvider } from './components/theme-provider';
 export { cn } from './lib/utils';
+export { ThemeProvider, useTheme } from './components/theme-provider';
+export { Button } from './components/button';
+
+import './styles/globals.css';
 ```
 
-**构建配置**：使用 `vite-plugin-dts` 在 Vite 构建时自动生成声明文件：
+**构建配置要点**：
+- `vite-plugin-dts` 自动生成 `.d.ts` 声明文件
+- CSS Modules 文件由 Vite 自动处理，无需额外 loader
+- CSS 被内联到 `dist/index.js`，应用导入 JS 时自动注入样式
 
-```ts
-// vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import dts from 'vite-plugin-dts';
+### 8.3 @kk-ai/utils（工具函数包）
 
-export default defineConfig({
-  plugins: [react(), dts({ insertTypesEntry: true })],
-  build: {
-    lib: {
-      entry: './src/index.ts',
-      formats: ['es'],
-      fileName: 'index',
-    },
-    rollupOptions: {
-      external: ['react', 'react-dom'],
-    },
-  },
-});
-```
+纯工具函数，无 UI 依赖。
 
-**关键设计**：
-- `external: ['react', 'react-dom']`：不打包 React，由应用提供
-- `formats: ['es']`：仅输出 ES Module，配合 `type: "module"`
-
-### 7.3 @kk-ai/utils（工具函数包）
-
-```ts
-// packages/utils/src/index.ts
-export const storage = {
-  get: <T>(key: string): T | null => {
-    const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : null;
-  },
-  set: <T>(key: string, value: T) => {
-    localStorage.setItem(key, JSON.stringify(value));
-  },
-};
-```
-
-### 7.4 Workspace 依赖引用
+### 8.4 Workspace 依赖引用
 
 ```json
 // apps/web-admin/package.json
@@ -375,9 +422,9 @@ export const storage = {
 
 ---
 
-## 八、初始化与日常开发流程
+## 九、初始化与日常开发流程
 
-### 8.1 首次初始化
+### 9.1 首次初始化
 
 ```bash
 # 1. 安装根依赖（自动安装所有 workspace 依赖）
@@ -390,7 +437,7 @@ pnpm run typecheck
 pnpm run build
 ```
 
-### 8.2 日常开发
+### 9.2 日常开发
 
 ```bash
 # 启动所有应用的 dev 服务（turbo 并行）
@@ -404,7 +451,7 @@ pnpm --filter @kk-ai/ui add lodash-es
 pnpm --filter @kk-ai/ui add -D @types/lodash-es
 ```
 
-### 8.3 添加新应用/包
+### 9.3 添加新应用/包
 
 ```bash
 # 新增前端应用
@@ -412,48 +459,46 @@ cd apps
 mkdir web-portal
 cd web-portal
 pnpm init
-
-# 新增共享包
-cd packages
-mkdir hooks
-cd hooks
-pnpm init
 ```
 
 **必须配置**：
 1. 在 `pnpm-workspace.yaml` 中确认路径匹配（已通配无需修改）
 2. 创建 `tsconfig.json` 继承 `../../tsconfig.base.json`
 3. 创建 `.gitignore`（建议从现有包复制）
-4. 在 `turbo.json` 中添加需要的新任务（如有）
+4. 创建 `src/css-modules.d.ts`（如使用 CSS Modules）
+5. 在 `turbo.json` 中添加需要的新任务（如有）
 
 ---
 
-## 九、最佳实践清单
+## 十、最佳实践清单
 
-### 9.1 ✅ 推荐做法
+### 10.1 ✅ 推荐做法
 
 | 实践 | 说明 |
 |------|------|
 | TS 严格模式 | 基座开启 `strict: true`，全链路覆盖 |
 | 配置继承 | 所有子项目 `extends` 基座，避免重复 |
 | 分层 .gitignore | 根级通用 + 项目级特定 |
+| CSS Modules 隔离 | 每个组件配套 `.module.css`，禁止全局类名 |
+| CSS Variables 主题 | 通过切换 `html` 的 class 实现无闪烁主题切换 |
 | workspace 协议 | 内部包使用 `workspace:*` 引用 |
 | 类型优先 | 先定义 `@kk-ai/types`，再实现功能 |
 | 库 external React | UI 包不打包 React，避免多实例 |
 | Turbo 缓存 | 利用 `dependsOn` 和缓存加速 CI |
 
-### 9.2 ❌ 避免事项
+### 10.2 ❌ 避免事项
 
 | 反模式 | 风险 |
 |--------|------|
 | 在基座中开启 `allowImportingTsExtensions` | 库级 `tsc` 编译会报错 |
 | 忽略 `.gitignore` | `node_modules` / `dist` 可能误提交 |
-| 库中打包 React | 导致应用出现多个 React 实例 |
+| 使用裸 CSS（非 Modules）写组件样式 | 全局命名冲突，维护困难 |
+| 在组件中硬编码颜色值 | 破坏主题切换一致性 |
 | 跨包直接相对路径引用 | 破坏封装，应使用包名导入 |
 
 ---
 
-## 十、后续扩展方向
+## 十一、后续扩展方向
 
 | 方向 | 建议 |
 |------|------|
@@ -463,6 +508,7 @@ pnpm init
 | CI/CD | GitHub Actions + Turbo Remote Cache |
 | 后端对接 | `services/` 目录初始化 API 服务 |
 | 路径别名 | 统一 `@/` 指向各包 `src` 目录 |
+| PostCSS 插件 | 按需引入 `autoprefixer`、`postcss-nested` 等 |
 
 ---
 
@@ -474,5 +520,9 @@ pnpm init
 | 构建编排 | `turbo.json` | Turbo 任务管道 |
 | TS 基座 | `tsconfig.base.json` | 共享编译器选项 |
 | 根忽略 | `.gitignore` | 全局忽略规则 |
+| CSS Variables | `packages/ui/src/styles/globals.css` | 设计系统主题变量 |
+| CSS Modules 声明 | `packages/ui/src/styles/css-modules.d.ts` | 模块类型声明 |
 | 应用 TS | `apps/*/tsconfig.json` | 应用级 TS 配置 |
 | 包 TS | `packages/*/tsconfig.json` | 库级 TS 配置 |
+| Button 组件 | `packages/ui/src/components/button.tsx` | CSS Modules 示例组件 |
+| Button 样式 | `packages/ui/src/components/button.module.css` | 组件级隔离样式 |

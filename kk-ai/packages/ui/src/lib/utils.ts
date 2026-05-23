@@ -1,9 +1,9 @@
 import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
 /**
- * 合并 tailwind className（shadcn/ui 标准工具）
+ * 合并 className 工具函数
+ * 使用 clsx 处理条件类名（替代 tailwind-merge + clsx 组合）
  */
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return clsx(inputs);
 }

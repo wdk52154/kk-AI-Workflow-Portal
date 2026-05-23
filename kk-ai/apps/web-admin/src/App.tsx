@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, useTheme } from '@kk-ai/ui';
 import { generateTraceId, storage } from '@kk-ai/utils';
 import type { Project } from '@kk-ai/types';
+import styles from './App.module.css';
 
 function App() {
   const { theme, setTheme, toggleTheme, resolvedTheme } = useTheme();
@@ -21,24 +22,24 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">康康 AI · 中台管理后台</h1>
-        <p className="text-muted-foreground">
+    <div className={styles.container}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>康康 AI · 中台管理后台</h1>
+        <p className={styles.subtitle}>
           Monorepo 初始化验证页面 | Trace ID: {traceId}
         </p>
       </header>
 
-      <section className="grid gap-6 max-w-2xl">
+      <section className={styles.section}>
         {/* 主题切换 */}
-        <div className="rounded-lg border p-6">
-          <h2 className="text-xl font-semibold mb-4">主题切换测试</h2>
-          <div className="flex items-center gap-4 mb-4">
-            <span className="text-sm text-muted-foreground">
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>主题切换测试</h2>
+          <div className={styles.infoRow}>
+            <span className={styles.infoText}>
               当前主题: <strong>{theme}</strong>（解析后: {resolvedTheme}）
             </span>
           </div>
-          <div className="flex gap-2">
+          <div className={styles.buttonGroup}>
             <Button variant="outline" size="sm" onClick={() => setTheme('light')}>
               亮色
             </Button>
@@ -55,9 +56,9 @@ function App() {
         </div>
 
         {/* 组件库测试 */}
-        <div className="rounded-lg border p-6">
-          <h2 className="text-xl font-semibold mb-4">UI 组件测试</h2>
-          <div className="flex flex-wrap gap-2">
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>UI 组件测试</h2>
+          <div className={styles.buttonGroup}>
             <Button>默认按钮</Button>
             <Button variant="secondary">次要按钮</Button>
             <Button variant="outline">边框按钮</Button>
@@ -68,21 +69,21 @@ function App() {
         </div>
 
         {/* 工具库测试 */}
-        <div className="rounded-lg border p-6">
-          <h2 className="text-xl font-semibold mb-4">工具库 & 类型测试</h2>
-          <p className="text-sm text-muted-foreground mb-4">
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>工具库 & 类型测试</h2>
+          <p className={styles.infoText}>
             Project 名称: {demoProject.name} | 日配额: {demoProject.quota.daily}
           </p>
           <Button onClick={handleSaveProject}>保存项目到 Storage</Button>
         </div>
 
         {/* 技术栈确认 */}
-        <div className="rounded-lg border p-6">
-          <h2 className="text-xl font-semibold mb-4">技术栈确认</h2>
-          <ul className="space-y-1 text-sm text-muted-foreground">
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>技术栈确认</h2>
+          <ul className={styles.techList}>
             <li>✅ pnpm workspace + strict-peer-dependencies=false</li>
             <li>✅ Vite + React 18 + TypeScript</li>
-            <li>✅ Tailwind CSS + shadcn/ui 设计规范</li>
+            <li>✅ CSS Modules + CSS Variables 设计系统</li>
             <li>✅ 主题切换（light / dark / system）</li>
             <li>✅ @kk-ai/ui / utils / types workspace 联动</li>
           </ul>

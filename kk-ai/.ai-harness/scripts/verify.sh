@@ -13,10 +13,12 @@ if [ -z "$TASK_ID" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 REPORT_DIR="${SCRIPT_DIR}/../reports"
 REPORT_FILE="${REPORT_DIR}/${TASK_ID}-$(date +%Y%m%d-%H%M%S).md"
 
 mkdir -p "$REPORT_DIR"
+cd "${PROJECT_ROOT}/kk-ai"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -71,7 +73,7 @@ echo ""
 echo "📋 [1/6] 规范符合性检查..."
 
 TASK_FILE="docs/tasks/*/${TASK_ID}*.md"
-if ! find docs/tasks -name "${TASK_ID}*.md" -type f | grep -q .; then
+if ! find docs/tasks -name "${TASK_ID}*.md" -type f 2>/dev/null | grep -q .; then
     log_fail "未找到 TASK 规范文件: docs/tasks/**/${TASK_ID}*.md"
     echo "- ❌ 缺少 TASK 规范" >> "$REPORT_FILE"
     exit 1
@@ -188,7 +190,7 @@ fi
 echo ""
 echo "📄 [6/6] 规范文档检查..."
 
-if grep -q "## 迭代记录" docs/tasks/*/${TASK_ID}*.md 2>/dev/null; then
+if find docs/tasks -name "${TASK_ID}*.md" -type f -exec grep -q "## 迭代记录" {} + 2>/dev/null; then
     log_pass "TASK 包含迭代记录"
     echo "- ✅ 包含迭代记录" >> "$REPORT_FILE"
 else
@@ -196,7 +198,7 @@ else
     echo "- ⚠️ 缺少迭代记录" >> "$REPORT_FILE"
 fi
 
-if grep -q "## 验收标准" docs/tasks/*/${TASK_ID}*.md 2>/dev/null; then
+if find docs/tasks -name "${TASK_ID}*.md" -type f -exec grep -q "## 验收标准" {} + 2>/dev/null; then
     log_pass "TASK 包含验收标准"
     echo "- ✅ 包含验收标准" >> "$REPORT_FILE"
 else

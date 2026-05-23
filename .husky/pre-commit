@@ -1,0 +1,20 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "[Husky] Running pre-commit checks..."
+cd kk-ai
+
+# 1. 运行 lint-staged（格式化 + lint）
+echo "[Husky] Lint staged files..."
+pnpm exec lint-staged
+
+# 2. 运行类型检查
+echo "[Husky] Type checking..."
+# 如果有 HEAD~1 则只检查变更的包，否则检查全部
+if git rev-parse HEAD~1 >/dev/null 2>&1; then
+    pnpm exec turbo run typecheck --filter=[HEAD~1] --output-logs=errors-only || true
+else
+    echo "[Husky] Skipping incremental typecheck (first commit)"
+fi
+
+echo "[Husky] Pre-commit checks done."

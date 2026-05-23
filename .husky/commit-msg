@@ -1,0 +1,8 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "[Husky] Checking commit message..."
+cd kk-ai
+
+# 运行 commitlint
+pnpm exec commitlint --edit $1

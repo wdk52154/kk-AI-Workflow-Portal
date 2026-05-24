@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { ProTable, StatisticCard } from "@ant-design/pro-components";
-import { Tag, message } from "antd";
+import { Tag } from "antd";
 import type { ProColumns } from "@ant-design/pro-components";
 
 interface QuotaProject {

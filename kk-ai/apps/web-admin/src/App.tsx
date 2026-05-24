@@ -15,8 +15,6 @@ import {
   CheckCircleOutlined,
   SaveOutlined,
   DesktopOutlined,
-  CodeOutlined,
-  CloudServerOutlined,
 } from "@ant-design/icons";
 import { ProLayout, ProCard, StatisticCard } from "@ant-design/pro-components";
 import { Button, Space, Tag, Tooltip, Badge, Divider, message } from "antd";
@@ -24,6 +22,7 @@ import type { Theme } from "@kk-ai/types";
 import { generateTraceId, storage } from "@kk-ai/utils";
 import type { Project } from "@kk-ai/types";
 import QuotaPage from "./pages/quota";
+import QuotaRulesPage from "./pages/quota/rules";
 
 /* ─── props from ThemeWrapper ─── */
 interface AppProps {
@@ -33,12 +32,7 @@ interface AppProps {
   toggleTheme: () => void;
 }
 
-function DashboardPage({
-  theme,
-  resolvedTheme,
-  setTheme,
-  toggleTheme,
-}: AppProps) {
+function DashboardPage({ resolvedTheme, setTheme, toggleTheme }: AppProps) {
   const [traceId] = useState(() => generateTraceId());
 
   const demoProject: Project = {
@@ -292,7 +286,15 @@ export default function App({
     path: "/",
     routes: [
       { path: "/", name: "总览", icon: <DashboardOutlined /> },
-      { path: "/quota", name: "配额管理", icon: <DatabaseOutlined /> },
+      {
+        path: "/quota",
+        name: "配额管理",
+        icon: <DatabaseOutlined />,
+        routes: [
+          { path: "/quota", name: "数据概览" },
+          { path: "/quota/rules", name: "规则配置" },
+        ],
+      },
       { path: "/models", name: "模型管理", icon: <ExperimentOutlined /> },
       { path: "/data", name: "数据看板", icon: <DatabaseOutlined /> },
       { path: "/auth", name: "权限管理", icon: <SafetyOutlined /> },
@@ -365,6 +367,7 @@ export default function App({
           }
         />
         <Route path="/quota" element={<QuotaPage />} />
+        <Route path="/quota/rules" element={<QuotaRulesPage />} />
       </Routes>
     </ProLayout>
   );

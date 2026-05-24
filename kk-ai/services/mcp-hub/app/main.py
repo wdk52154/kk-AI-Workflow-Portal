@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.middleware.auth import AuthMiddleware
@@ -10,6 +11,8 @@ from app.middleware.logger import LoggerMiddleware, setup_logging
 from app.middleware.quota import QuotaMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.router.proxy import router as proxy_router
+from app.router.quota import router as quota_router
+from app.services.quota_service import QuotaService
 from app.utils.redis_client import RedisClient
 
 
@@ -22,6 +25,9 @@ async def lifespan(app: FastAPI):
     setup_logging()
     redis_client = RedisClient()
     await redis_client.connect()
+
+    # Connect quota service to Redis
+    app.state.quota_service.set_redis_client(redis_client)
 
     yield
 
@@ -46,12 +52,25 @@ def create_app() -> FastAPI:
     # Logger -> Quota -> RateLimit -> Auth -> Router
     # Request flow: Auth -> RateLimit -> Quota -> Logger -> handler
     # Response flow: handler -> Logger -> Quota -> RateLimit -> Auth -> client
+    # CORS: allow frontend dev server
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.add_middleware(LoggerMiddleware)
     app.add_middleware(QuotaMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(AuthMiddleware)
 
-    # Register routes
+    # Initialize quota service (before lifespan connects Redis)
+    app.state.quota_service = QuotaService()
+
+    # Register routes (quota first to avoid proxy catch-all)
+    app.include_router(quota_router)
     app.include_router(proxy_router)
 
     return app

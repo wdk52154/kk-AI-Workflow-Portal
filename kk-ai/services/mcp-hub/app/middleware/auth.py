@@ -39,7 +39,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     Skips auth for health endpoints.
     """
 
-    EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+    EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/api/v1/quota"}
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
         path = request.url.path

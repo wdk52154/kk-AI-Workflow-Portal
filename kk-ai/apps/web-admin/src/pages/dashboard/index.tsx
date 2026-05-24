@@ -5,7 +5,6 @@ import {
   Code2,
   Cpu,
   Database,
-  FolderGit2,
   Gauge,
   Layers,
   Palette,

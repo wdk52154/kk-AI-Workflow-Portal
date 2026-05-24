@@ -6,18 +6,21 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse
 
-from app.config import get_settings
-from app.utils.redis_client import get_redis_client
+from app.services.quota_service import QuotaService
 
 logger = logging.getLogger("mcp-hub.quota")
 
 
 class QuotaMiddleware(BaseHTTPMiddleware):
-    """
-    Consumes quota per request. Checks daily and monthly limits.
-    """
+    """Consumes quota per request. Checks daily and monthly limits dynamically."""
 
-    EXEMPT_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+    EXEMPT_PATHS = {
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/api/v1/quota",
+    }
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
         path = request.url.path
@@ -25,53 +28,61 @@ class QuotaMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(ep) for ep in self.EXEMPT_PATHS):
             return await call_next(request)
 
-        project_id = getattr(request.state, "project_id", None)
-        if not project_id:
+        # Get project name from request state (set by AuthMiddleware) or header
+        project_name = getattr(request.state, "project_name", None)
+        if not project_name:
+            project_name = request.headers.get("X-Project-Name")
+
+        if not project_name:
             return await call_next(request)
 
-        settings = get_settings()
-        daily_quota = getattr(request.state, "daily_quota", settings.QUOTA_DAILY_DEFAULT)
-        monthly_quota = getattr(request.state, "monthly_quota", settings.QUOTA_MONTHLY_DEFAULT)
-
-        redis_client = await get_redis_client()
-        allowed, quota_info = await redis_client.check_and_consume_quota(
-            project_id=project_id,
-            daily_quota=daily_quota,
-            monthly_quota=monthly_quota,
+        # Get quota service from app state
+        quota_service: QuotaService | None = getattr(
+            request.app.state, "quota_service", None
         )
+        if not quota_service:
+            return await call_next(request)
 
-        if not allowed:
-            reason = quota_info.get("reason", "quota_exceeded")
+        result = await quota_service.check_and_increment(project_name)
+
+        if not result["allowed"]:
+            reason = result["reason"]
+            quota_info = result["quota_info"]
             logger.warning(
-                "Quota exceeded | project_id=%s reason=%s daily=%s/%s monthly=%s/%s trace_id=%s",
-                project_id,
+                "Quota exceeded | project=%s reason=%s daily=%s/%s monthly=%s/%s",
+                project_name,
                 reason,
                 quota_info["daily_used"],
                 quota_info["daily_limit"],
                 quota_info["monthly_used"],
                 quota_info["monthly_limit"],
-                getattr(request.state, "trace_id", "unknown"),
             )
             return JSONResponse(
                 status_code=429,
                 content={
                     "error": "QUOTA_EXCEEDED",
-                    "message": f"Quota exceeded: {reason}",
-                    "trace_id": getattr(request.state, "trace_id", "unknown"),
+                    "message": f"Quota exceeded: {reason} quota",
+                    "type": reason,
                     "quota": quota_info,
                 },
             )
 
-        # Attach quota info for response headers
-        request.state.quota_info = quota_info
+        # Log alert if threshold exceeded
+        if result.get("alert"):
+            quota_info = result["quota_info"]
+            logger.warning(
+                "QUOTA_ALERT | project=%s usage_rate=%.1f%% threshold=%d%% "
+                "daily=%s/%s monthly=%s/%s",
+                project_name,
+                result.get("usage_rate", 0),
+                result.get("alert_threshold", 0),
+                quota_info["daily_used"],
+                quota_info["daily_limit"],
+                quota_info["monthly_used"],
+                quota_info["monthly_limit"],
+            )
 
-        logger.debug(
-            "Quota OK | project_id=%s daily=%s/%s monthly=%s/%s trace_id=%s",
-            project_id,
-            quota_info["daily_used"],
-            quota_info["daily_limit"],
-            quota_info["monthly_used"],
-            quota_info["monthly_limit"],
-            getattr(request.state, "trace_id", "unknown"),
-        )
+        # Attach quota info for response headers
+        request.state.quota_info = result["quota_info"]
+
         return await call_next(request)

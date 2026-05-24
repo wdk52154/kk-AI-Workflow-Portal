@@ -291,7 +291,7 @@ export default function App({
         name: "配额管理",
         icon: <DatabaseOutlined />,
         routes: [
-          { path: "/quota", name: "数据概览" },
+          { path: "/quota/dataOverview", name: "数据概览" },
           { path: "/quota/rules", name: "规则配置" },
         ],
       },
@@ -331,7 +331,21 @@ export default function App({
       route={routeConfig}
       location={location}
       menuItemRender={(item, dom) => (
-        <div onClick={() => item.path && navigate(item.path)}>{dom}</div>
+        <div
+          onClick={() => {
+            const subRoutes = (
+              item as unknown as { routes?: Array<{ path?: string }> }
+            ).routes;
+            if (subRoutes && subRoutes.length > 0) {
+              // Parent menu: navigate to first child route
+              navigate(subRoutes[0].path!);
+            } else if (item.path) {
+              navigate(item.path);
+            }
+          }}
+        >
+          {dom}
+        </div>
       )}
       actionsRender={() => [
         <Tooltip title={`当前: ${theme}，点击切换`} key="theme">
@@ -366,7 +380,7 @@ export default function App({
             />
           }
         />
-        <Route path="/quota" element={<QuotaPage />} />
+        <Route path="/quota/dataOverview" element={<QuotaPage />} />
         <Route path="/quota/rules" element={<QuotaRulesPage />} />
       </Routes>
     </ProLayout>

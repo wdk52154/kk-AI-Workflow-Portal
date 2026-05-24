@@ -50,3 +50,15 @@ Object.defineProperty(window, "scrollTo", {
   writable: true,
   value: vi.fn(),
 });
+
+// Mock ResizeObserver (required by Ant Design Tabs)
+class MockResizeObserver {
+  observe = vi.fn();
+  disconnect = vi.fn();
+  unobserve = vi.fn();
+}
+Object.defineProperty(window, "ResizeObserver", {
+  writable: true,
+  configurable: true,
+  value: MockResizeObserver,
+});

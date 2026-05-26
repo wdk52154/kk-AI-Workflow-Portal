@@ -15,6 +15,10 @@ import {
   CheckCircleOutlined,
   SaveOutlined,
   DesktopOutlined,
+  MonitorOutlined,
+  EditOutlined,
+  FileTextOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import { ProLayout, ProCard, StatisticCard } from "@ant-design/pro-components";
 import { Button, Space, Tag, Tooltip, Badge, Divider, message } from "antd";
@@ -23,6 +27,10 @@ import { generateTraceId, storage } from "@kk-ai/utils";
 import type { Project } from "@kk-ai/types";
 import QuotaPage from "./pages/quota";
 import QuotaRulesPage from "./pages/quota/rules";
+import MonitorPage from "./pages/monitor";
+import AnnotationPage from "./pages/annotation";
+import PromptsPage from "./pages/prompts";
+import ApiKeysPage from "./pages/apiKeys";
 
 /* ─── props from ThemeWrapper ─── */
 interface AppProps {
@@ -298,7 +306,10 @@ export default function App({
       { path: "/models", name: "模型管理", icon: <ExperimentOutlined /> },
       { path: "/data", name: "数据看板", icon: <DatabaseOutlined /> },
       { path: "/auth", name: "权限管理", icon: <SafetyOutlined /> },
-      { path: "/monitor", name: "监控告警", icon: <AlertOutlined /> },
+      { path: "/monitor", name: "服务监控", icon: <MonitorOutlined /> },
+      { path: "/data/annotation", name: "数据标注", icon: <EditOutlined /> },
+      { path: "/prompts", name: "Prompt 管理", icon: <FileTextOutlined /> },
+      { path: "/auth/keys", name: "API Key", icon: <KeyOutlined /> },
       { path: "/settings", name: "项目设置", icon: <SettingOutlined /> },
     ],
   };
@@ -382,6 +393,10 @@ export default function App({
         />
         <Route path="/quota/dataOverview" element={<QuotaPage />} />
         <Route path="/quota/rules" element={<QuotaRulesPage />} />
+        <Route path="/monitor" element={<MonitorPage />} />
+        <Route path="/data/annotation" element={<AnnotationPage />} />
+        <Route path="/prompts" element={<PromptsPage />} />
+        <Route path="/auth/keys" element={<ApiKeysPage />} />
       </Routes>
     </ProLayout>
   );

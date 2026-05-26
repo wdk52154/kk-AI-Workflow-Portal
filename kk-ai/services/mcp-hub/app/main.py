@@ -10,9 +10,12 @@ from app.middleware.auth import AuthMiddleware
 from app.middleware.logger import LoggerMiddleware, setup_logging
 from app.middleware.quota import QuotaMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.router.admin import router as admin_router
 from app.router.proxy import router as proxy_router
 from app.router.quota import router as quota_router
+from app.services.api_key_service import get_api_key_service
 from app.services.quota_service import QuotaService
+from app.services.router_service import get_router_service
 from app.utils.redis_client import RedisClient
 
 
@@ -28,6 +31,10 @@ async def lifespan(app: FastAPI):
 
     # Connect quota service to Redis
     app.state.quota_service.set_redis_client(redis_client)
+
+    # Sync API keys from Redis
+    api_key_service = get_api_key_service()
+    await api_key_service.sync_from_redis()
 
     yield
 
@@ -48,10 +55,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Middleware chain (outer -> inner):
-    # Logger -> Quota -> RateLimit -> Auth -> Router
-    # Request flow: Auth -> RateLimit -> Quota -> Logger -> handler
-    # Response flow: handler -> Logger -> Quota -> RateLimit -> Auth -> client
     # CORS: allow frontend dev server
     app.add_middleware(
         CORSMiddleware,
@@ -61,16 +64,21 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.add_middleware(LoggerMiddleware)
+    # Middleware chain (outer -> inner):
+    # Logger -> Auth -> RateLimit -> Quota -> app
+    # Request flow: Auth -> RateLimit -> Quota -> app -> response
+    # Logger wraps all to record full lifecycle
     app.add_middleware(QuotaMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(AuthMiddleware)
+    app.add_middleware(LoggerMiddleware)
 
-    # Initialize quota service (before lifespan connects Redis)
+    # Initialize services (before lifespan connects Redis)
     app.state.quota_service = QuotaService()
 
     # Register routes (quota first to avoid proxy catch-all)
     app.include_router(quota_router)
+    app.include_router(admin_router)
     app.include_router(proxy_router)
 
     return app

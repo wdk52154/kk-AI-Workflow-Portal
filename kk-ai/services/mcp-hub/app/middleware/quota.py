@@ -20,6 +20,7 @@ class QuotaMiddleware(BaseHTTPMiddleware):
         "/openapi.json",
         "/redoc",
         "/api/v1/quota",
+        "/api/v1/admin",
     }
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
@@ -57,7 +58,7 @@ class QuotaMiddleware(BaseHTTPMiddleware):
                 quota_info["monthly_used"],
                 quota_info["monthly_limit"],
             )
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=429,
                 content={
                     "error": "QUOTA_EXCEEDED",
@@ -66,23 +67,36 @@ class QuotaMiddleware(BaseHTTPMiddleware):
                     "quota": quota_info,
                 },
             )
-
-        # Log alert if threshold exceeded
-        if result.get("alert"):
-            quota_info = result["quota_info"]
-            logger.warning(
-                "QUOTA_ALERT | project=%s usage_rate=%.1f%% threshold=%d%% "
-                "daily=%s/%s monthly=%s/%s",
-                project_name,
-                result.get("usage_rate", 0),
-                result.get("alert_threshold", 0),
-                quota_info["daily_used"],
-                quota_info["daily_limit"],
-                quota_info["monthly_used"],
-                quota_info["monthly_limit"],
-            )
+            # Add quota headers to error response
+            response.headers["X-Quota-Daily-Used"] = str(quota_info["daily_used"])
+            response.headers["X-Quota-Daily-Limit"] = str(quota_info["daily_limit"])
+            response.headers["X-Quota-Monthly-Used"] = str(quota_info["monthly_used"])
+            response.headers["X-Quota-Monthly-Limit"] = str(quota_info["monthly_limit"])
+            return response
 
         # Attach quota info for response headers
         request.state.quota_info = result["quota_info"]
 
-        return await call_next(request)
+        # Process request
+        response = await call_next(request)
+
+        # Add quota headers and warning header to successful response
+        quota_info = result["quota_info"]
+        response.headers["X-Quota-Daily-Used"] = str(quota_info["daily_used"])
+        response.headers["X-Quota-Daily-Limit"] = str(quota_info["daily_limit"])
+        response.headers["X-Quota-Monthly-Used"] = str(quota_info["monthly_used"])
+        response.headers["X-Quota-Monthly-Limit"] = str(quota_info["monthly_limit"])
+
+        # Add warning header if usage rate >= threshold
+        usage_rate = result.get("usage_rate", 0)
+        alert_threshold = result.get("alert_threshold", 80)
+        if usage_rate >= alert_threshold:
+            response.headers["X-Quota-Warning"] = "true"
+            logger.warning(
+                "QUOTA_ALERT | project=%s usage_rate=%.1f%% threshold=%d%%",
+                project_name,
+                usage_rate,
+                alert_threshold,
+            )
+
+        return response

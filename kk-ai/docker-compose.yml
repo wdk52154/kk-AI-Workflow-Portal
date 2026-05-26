@@ -1,44 +1,212 @@
 version: "3.8"
 
 services:
+  # Infrastructure
+  postgres:
+    image: postgres:16-alpine
+    container_name: ai-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ai-platform
+
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    container_name: ai-redis
     volumes:
       - redis-data:/data
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - ai-platform
+
+  chromadb:
+    image: chromadb/chroma:0.6.0
+    container_name: ai-chromadb
+    volumes:
+      - chroma-data:/chroma/chroma
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-platform
+
+  # Backend Services
+  service-llm:
+    build:
+      context: ./services/service-llm
+      dockerfile: Dockerfile
+    container_name: ai-service-llm
+    ports:
+      - "9001:9001"
+    env_file: .env
+    environment:
+      - LLM_PORT=9001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
+  service-rag:
+    build:
+      context: ./services/service-rag
+      dockerfile: Dockerfile
+    container_name: ai-service-rag
+    ports:
+      - "9002:9002"
+    env_file: .env
+    environment:
+      - RAG_PORT=9002
+      - RAG_LLM_GATEWAY_URL=http://service-llm:9001
+    depends_on:
+      service-llm:
+        condition: service_healthy
+    volumes:
+      - service-rag-data:/app/chroma_data
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
+  service-memory:
+    build:
+      context: ./services/service-memory
+      dockerfile: Dockerfile
+    container_name: ai-service-memory
+    ports:
+      - "9003:9003"
+    env_file: .env
+    environment:
+      - MEMORY_PORT=9003
+      - MEMORY_LLM_GATEWAY_URL=http://service-llm:9001
+    depends_on:
+      service-llm:
+        condition: service_healthy
+    volumes:
+      - service-memory-data:/app/data
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
+  service-prompt:
+    build:
+      context: ./services/service-prompt
+      dockerfile: Dockerfile
+    container_name: ai-service-prompt
+    ports:
+      - "9004:9004"
+    env_file: .env
+    environment:
+      - PROMPT_PORT=9004
+    volumes:
+      - service-prompt-data:/app/prompts
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
+  service-data:
+    build:
+      context: ./services/service-data
+      dockerfile: Dockerfile
+    container_name: ai-service-data
+    ports:
+      - "9005:9005"
+    env_file: .env
+    environment:
+      - DATA_PORT=9005
+      - DATA_RAG_SERVICE_URL=http://service-rag:9002
+      - DATA_MEMORY_SERVICE_URL=http://service-memory:9003
+      - DATA_LLM_GATEWAY_URL=http://service-llm:9001
+    depends_on:
+      service-llm:
+        condition: service_healthy
+      service-rag:
+        condition: service_healthy
+      service-memory:
+        condition: service_healthy
+    volumes:
+      - service-data-data:/app/data
+    networks:
+      - ai-platform
+    restart: unless-stopped
 
   mcp-hub:
     build:
       context: ./services/mcp-hub
       dockerfile: Dockerfile
+    container_name: ai-mcp-hub
     ports:
       - "8000:8000"
+    env_file: .env
     environment:
+      - MCPHUB_PORT=8000
       - MCPHUB_REDIS_URL=redis://redis:6379/0
-      - MCPHUB_DEBUG=false
-      - MCPHUB_LOG_LEVEL=INFO
     depends_on:
       redis:
         condition: service_healthy
+      service-llm:
+        condition: service_healthy
+      service-rag:
+        condition: service_healthy
+      service-memory:
+        condition: service_healthy
+      service-prompt:
+        condition: service_healthy
+      service-data:
+        condition: service_healthy
+    networks:
+      - ai-platform
     restart: unless-stopped
 
+  # Frontend
   web-admin:
     build:
       context: ./apps/web-admin
       dockerfile: Dockerfile
+    container_name: ai-web-admin
     ports:
       - "5173:80"
     environment:
       - VITE_API_BASE_URL=http://localhost:8000
     depends_on:
       - mcp-hub
+    networks:
+      - ai-platform
     restart: unless-stopped
 
 volumes:
+  postgres-data:
   redis-data:
+  chroma-data:
+  service-rag-data:
+  service-memory-data:
+  service-data-data:
+  service-prompt-data:
+
+networks:
+  ai-platform:
+    driver: bridge

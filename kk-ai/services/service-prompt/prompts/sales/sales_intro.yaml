@@ -1,0 +1,31 @@
+id: sales_intro
+name: 销售开场白
+category: sales
+version: 1.0.0
+description: 用于销售场景的开场白模板
+author: sales-team
+tags: [销售, 开场]
+
+variables:
+  - name: product_name
+    required: true
+    description: 产品名称
+    example: iPhone 15
+  - name: price
+    required: true
+    description: 产品价格
+    example: "5999"
+  - name: vip
+    required: false
+    default: false
+    type: boolean
+    description: 是否 VIP 客户
+    example: "true"
+
+template: |
+  欢迎来到我们的商店！
+  今天为您推荐的是 {{ product_name }}，售价 {{ price }} 元。
+  {% if vip %}
+  作为尊享客户，您可享受额外 9 折优惠！
+  {% endif %}
+  请问有什么可以帮您的？

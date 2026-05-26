@@ -1,0 +1,32 @@
+id: rag_retrieve
+name: RAG 检索增强提示
+category: rag
+version: 1.0.0
+description: 基于检索到的上下文生成回答
+author: rag-team
+tags: [rag, 检索]
+
+variables:
+  - name: query
+    required: true
+    description: 用户原始问题
+    example: "什么是 RAG？"
+  - name: context
+    required: true
+    description: 检索到的相关文档片段
+    example: "RAG（Retrieval-Augmented Generation）是一种..."
+  - name: source_count
+    required: false
+    default: "3"
+    description: 参考文档数量
+    example: "3"
+
+template: |
+  基于以下检索到的信息，回答用户的问题。
+
+  检索到的相关文档（共 {{ source_count }} 条）：
+  {{ context }}
+
+  用户问题：{{ query }}
+
+  请根据以上信息给出准确、简洁的回答。如果信息不足以回答问题，请明确说明。

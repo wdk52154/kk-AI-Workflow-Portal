@@ -1,0 +1,12 @@
+id: test_hello
+name: 问候语
+category: user
+description: null
+variables:
+  - name: name
+    required: true
+    description: null
+    default: null
+    type: string
+    example: null
+template: 你好 {{ name }}！

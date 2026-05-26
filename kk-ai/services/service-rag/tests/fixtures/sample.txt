@@ -1,0 +1,4 @@
+This is a sample text document for testing RAG ingestion.
+It contains multiple sentences to test chunking behavior.
+The document parser should extract all text correctly.
+Token-based splitting will divide this into chunks.

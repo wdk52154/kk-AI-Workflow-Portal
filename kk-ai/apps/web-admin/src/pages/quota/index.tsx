@@ -1,18 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ProTable, StatisticCard } from "@ant-design/pro-components";
-import { Tag } from "antd";
+import { Tag, message } from "antd";
 import type { ProColumns } from "@ant-design/pro-components";
-
-interface QuotaProject {
-  projectId: string;
-  projectName: string;
-  todayUsed: number;
-  todayLimit: number;
-  monthUsed: number;
-  monthLimit: number;
-  usageRate: number;
-  status: "normal" | "warning" | "exceeded";
-}
+import { quotaApi, type QuotaUsage } from "../../services/quota";
 
 interface QuotaSummary {
   todayTotal: number;
@@ -21,49 +11,8 @@ interface QuotaSummary {
   exceededCount: number;
 }
 
-/** 模拟数据 */
-const mockData: QuotaProject[] = [
-  {
-    projectId: "proj_001",
-    projectName: "康康 AI 中台",
-    todayUsed: 5234,
-    todayLimit: 10000,
-    monthUsed: 89321,
-    monthLimit: 300000,
-    usageRate: 52.3,
-    status: "normal",
-  },
-  {
-    projectId: "proj_002",
-    projectName: "客户 A 项目",
-    todayUsed: 8500,
-    todayLimit: 10000,
-    monthUsed: 245000,
-    monthLimit: 300000,
-    usageRate: 85.0,
-    status: "warning",
-  },
-  {
-    projectId: "proj_003",
-    projectName: "内部测试项目",
-    todayUsed: 12000,
-    todayLimit: 10000,
-    monthUsed: 320000,
-    monthLimit: 300000,
-    usageRate: 100.0,
-    status: "exceeded",
-  },
-];
-
-const mockSummary: QuotaSummary = {
-  todayTotal: 25734,
-  monthTotal: 654321,
-  avgUsageRate: 79.1,
-  exceededCount: 1,
-};
-
 /** 状态 Tag 渲染 */
-function StatusTag({ status }: { status: QuotaProject["status"] }) {
+function StatusTag({ status }: { status: QuotaUsage["status"] }) {
   const config = {
     normal: { color: "success" as const, text: "正常" },
     warning: { color: "warning" as const, text: "预警" },
@@ -83,37 +32,37 @@ function UsageTag({ rate }: { rate: number }) {
 }
 
 /** 表格列定义 */
-const columns: ProColumns<QuotaProject>[] = [
+const columns: ProColumns<QuotaUsage>[] = [
   {
     title: "项目名称",
-    dataIndex: "projectName",
-    key: "projectName",
+    dataIndex: "project_name",
+    key: "project_name",
     search: true,
-    sorter: (a, b) => a.projectName.localeCompare(b.projectName),
+    sorter: (a, b) => a.project_name.localeCompare(b.project_name),
   },
   {
     title: "今日调用",
-    dataIndex: "todayUsed",
-    key: "todayUsed",
+    dataIndex: "daily_used",
+    key: "daily_used",
     align: "right",
     render: (_, record) =>
-      `${record.todayUsed.toLocaleString()} / ${record.todayLimit.toLocaleString()}`,
+      `${record.daily_used.toLocaleString()} / ${record.daily_limit.toLocaleString()}`,
   },
   {
     title: "本月调用",
-    dataIndex: "monthUsed",
-    key: "monthUsed",
+    dataIndex: "monthly_used",
+    key: "monthly_used",
     align: "right",
     render: (_, record) =>
-      `${record.monthUsed.toLocaleString()} / ${record.monthLimit.toLocaleString()}`,
+      `${record.monthly_used.toLocaleString()} / ${record.monthly_limit.toLocaleString()}`,
   },
   {
     title: "使用率",
-    dataIndex: "usageRate",
-    key: "usageRate",
+    dataIndex: "usage_rate",
+    key: "usage_rate",
     align: "right",
-    sorter: (a, b) => a.usageRate - b.usageRate,
-    render: (_, record) => <UsageTag rate={record.usageRate} />,
+    sorter: (a, b) => a.usage_rate - b.usage_rate,
+    render: (_, record) => <UsageTag rate={record.usage_rate} />,
   },
   {
     title: "状态",
@@ -130,10 +79,89 @@ const columns: ProColumns<QuotaProject>[] = [
   },
 ];
 
-export default function QuotaPage() {
+function useQuotaData() {
+  const [data, setData] = useState<QuotaUsage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const summary = useMemo(() => mockSummary, []);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    quotaApi
+      .getUsage()
+      .then((res) => {
+        if (!cancelled) {
+          setData(res);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "加载失败");
+          message.error("配额数据加载失败");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const summary = useMemo<QuotaSummary>(() => {
+    if (data.length === 0) {
+      return {
+        todayTotal: 0,
+        monthTotal: 0,
+        avgUsageRate: 0,
+        exceededCount: 0,
+      };
+    }
+    const todayTotal = data.reduce((sum, d) => sum + d.daily_used, 0);
+    const monthTotal = data.reduce((sum, d) => sum + d.monthly_used, 0);
+    const avgUsageRate =
+      data.reduce((sum, d) => sum + d.usage_rate, 0) / data.length;
+    const exceededCount = data.filter((d) => d.status === "exceeded").length;
+    return {
+      todayTotal,
+      monthTotal,
+      avgUsageRate: Math.round(avgUsageRate * 10) / 10,
+      exceededCount,
+    };
+  }, [data]);
+
+  return { data, loading, error, summary };
+}
+
+export default function QuotaPage() {
+  const { data, loading, error, summary } = useQuotaData();
+
+  if (error) {
+    return (
+      <div style={{ textAlign: "center", padding: 48 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>
+          配额管理
+        </h2>
+        <p style={{ color: "#ef4444", marginBottom: 16 }}>
+          数据加载失败: {error}
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 6,
+            border: "none",
+            background: "#2563eb",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          重新加载
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -182,11 +210,11 @@ export default function QuotaPage() {
       </StatisticCard.Group>
 
       {/* 配额明细表格 */}
-      <ProTable<QuotaProject>
+      <ProTable<QuotaUsage>
         headerTitle="项目配额明细"
         columns={columns}
-        dataSource={mockData}
-        rowKey="projectId"
+        dataSource={data}
+        rowKey="project_name"
         loading={loading}
         search={{ labelWidth: "auto" }}
         pagination={{ pageSize: 10 }}
@@ -195,10 +223,6 @@ export default function QuotaPage() {
             使用率 ≥ 80% 黄色预警，≥ 100% 红色超限
           </span>,
         ]}
-        onLoad={() => {
-          setLoading(true);
-          setTimeout(() => setLoading(false), 300);
-        }}
         locale={{ emptyText: "暂无配额数据" }}
       />
     </div>

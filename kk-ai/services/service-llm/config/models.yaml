@@ -1,0 +1,42 @@
+# LLM Model Configuration
+# 支持热加载：修改此文件后 5 秒内自动生效
+
+models:
+  - id: "doubao-lite-4k"
+    name: "Doubao Lite 4K"
+    provider: "doubao"
+    endpoint_id: "ep-xxxxxxxxxxxxxxx"
+    context_length: 4096
+    temperature_range: [0.0, 1.0]
+    max_tokens: 4096
+    pricing:
+      input_per_1k: 0.0008
+      output_per_1k: 0.002
+    supports_streaming: true
+    supports_embedding: false
+
+  - id: "doubao-pro-128k"
+    name: "Doubao Pro 128K"
+    provider: "doubao"
+    endpoint_id: "ep-yyyyyyyyyyyyyyy"
+    context_length: 128000
+    temperature_range: [0.0, 1.0]
+    max_tokens: 128000
+    pricing:
+      input_per_1k: 0.005
+      output_per_1k: 0.015
+    supports_streaming: true
+    supports_embedding: false
+
+  - id: "doubao-embedding"
+    name: "Doubao Embedding"
+    provider: "doubao"
+    endpoint_id: "ep-zzzzzzzzzzzzzzz"
+    context_length: 8192
+    pricing:
+      input_per_1k: 0.0001
+    supports_streaming: false
+    supports_embedding: true
+
+default_chat_model: "doubao-lite-4k"
+default_embedding_model: "doubao-embedding"

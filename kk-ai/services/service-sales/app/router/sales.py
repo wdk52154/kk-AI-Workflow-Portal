@@ -5,10 +5,12 @@ from app.models.sales import (
     RoleplayStartRequest, RoleplayStartResponse, RoleplayChatRequest,
     RoleplayChatResponse, RoleplayEvaluateRequest, RoleplayEvaluateResponse
 )
+from app.models.conversation import ConversationResponse
 from app.services.script_store import get_script_store
 from app.services.rag_client import search_scripts, ingest_script
 from app.services.memory_client import recall_user_facts
 from app.services.roleplay import create_session, chat, evaluate
+from app.services.data_client import ingest_script_to_data, ingest_conversation
 from app.config import get_settings
 
 router = APIRouter(prefix="/v1/sales", tags=["sales"])
@@ -20,6 +22,8 @@ async def create_script(body: ScriptCreate):
     sid = store.create_script(body.model_dump())
     # 回流到 RAG 知识库
     await ingest_script(sid, body.title, body.content, body.category, body.tags)
+    # 回流到数据中心 service-data:9005
+    await ingest_script_to_data(sid, body.title, body.content, body.category, body.tags)
     return store.get_script(sid)
 
 @router.get("/scripts")
@@ -106,9 +110,32 @@ async def roleplay_evaluate(body: RoleplayEvaluateRequest):
     result = evaluate(body.session_id)
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
+    # 评估后自动回流优质对话到数据中心（评分≥80）
+    if result["total_score"] >= 80:
+        await ingest_conversation(
+            body.session_id,
+            content="\n".join([f"{m['role']}: {m['content']}" for m in result["transcript"]]),
+            metadata={
+                "session_id": body.session_id,
+                "total_score": result["total_score"],
+                "dimensions": result["dimensions"],
+                "customer_type": result.get("customer_type", "unknown"),
+                "quality": "high",
+            }
+        )
+
     return RoleplayEvaluateResponse(
         total_score=result["total_score"],
         dimensions=result["dimensions"],
         suggestions=result["suggestions"],
         transcript=result["transcript"]
     )
+
+# ---- Conversations ----
+@router.get("/conversations")
+async def list_conversations(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
+):
+    store = get_script_store()
+    return store.list_sessions(page=page, page_size=page_size)

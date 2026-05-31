@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from app.services.script_store import get_script_store
 
+
 CUSTOMER_PROFILES = {
     "hesitant": {
         "name": "犹豫型客户",
@@ -30,6 +31,7 @@ def create_session(customer_type: str, scenario: Optional[str], product: Optiona
     store = get_script_store()
     store.create_session(session_id, customer_type, scenario, product)
     store.append_message(session_id, "customer", profile["opening"])
+
     return {
         "session_id": session_id,
         "customer_profile": {

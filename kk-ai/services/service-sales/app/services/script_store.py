@@ -180,6 +180,33 @@ class ScriptStore:
         conn.close()
         return True
 
+    def list_sessions(self, page: int = 1, page_size: int = 20):
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM roleplay_sessions WHERE ended_at IS NOT NULL")
+        total = c.fetchone()[0]
+        c.execute('''
+            SELECT session_id, customer_type, scenario, product, transcript,
+                   scores, created_at, ended_at
+            FROM roleplay_sessions
+            WHERE ended_at IS NOT NULL
+            ORDER BY ended_at DESC
+            LIMIT ? OFFSET ?
+        ''', (page_size, (page - 1) * page_size))
+        rows = c.fetchall()
+        conn.close()
+        data = []
+        for r in rows:
+            scores = json.loads(r[5]) if r[5] else {}
+            data.append({
+                "id": r[0], "session_id": r[0], "conversation_type": "roleplay",
+                "transcript": json.loads(r[4]), "total_score": scores.get("total_score"),
+                "quality_marked": scores.get("total_score", 0) >= 80,
+                "metadata": {"customer_type": r[1], "scenario": r[2], "product": r[3]},
+                "created_at": r[6], "ended_at": r[7]
+            })
+        return {"data": data, "total": total, "page": page, "page_size": page_size}
+
     def end_session(self, session_id: str, scores: dict):
         now = datetime.now(timezone.utc).isoformat()
         conn = sqlite3.connect(self.db_path)

@@ -19,6 +19,7 @@ import {
   EditOutlined,
   FileTextOutlined,
   KeyOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import { ProLayout, ProCard, StatisticCard } from "@ant-design/pro-components";
 import { Button, Space, Tag, Tooltip, Badge, Divider, message } from "antd";
@@ -31,6 +32,7 @@ import MonitorPage from "./pages/monitor";
 import AnnotationPage from "./pages/annotation";
 import PromptsPage from "./pages/prompts";
 import ApiKeysPage from "./pages/apiKeys";
+import UserProfilePage from "./pages/userProfile";
 
 /* ─── props from ThemeWrapper ─── */
 interface AppProps {
@@ -310,6 +312,7 @@ export default function App({
       { path: "/data/annotation", name: "数据标注", icon: <EditOutlined /> },
       { path: "/prompts", name: "Prompt 管理", icon: <FileTextOutlined /> },
       { path: "/auth/keys", name: "API Key", icon: <KeyOutlined /> },
+      { path: "/user-profile", name: "用户画像", icon: <UserOutlined /> },
       { path: "/settings", name: "项目设置", icon: <SettingOutlined /> },
     ],
   };
@@ -397,6 +400,7 @@ export default function App({
         <Route path="/data/annotation" element={<AnnotationPage />} />
         <Route path="/prompts" element={<PromptsPage />} />
         <Route path="/auth/keys" element={<ApiKeysPage />} />
+        <Route path="/user-profile" element={<UserProfilePage />} />
       </Routes>
     </ProLayout>
   );

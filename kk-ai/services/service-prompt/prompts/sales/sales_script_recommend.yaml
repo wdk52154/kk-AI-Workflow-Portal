@@ -1,0 +1,42 @@
+id: sales_script_recommend
+name: 销售话术推荐
+category: sales
+version: 1.0.0
+description: 根据客户问题和场景，推荐最合适的销售话术
+author: sales-team
+tags: [销售, 话术, 推荐]
+
+variables:
+  - name: customer_question
+    required: true
+    description: 客户提出的问题或需求
+    example: "你们这个产品和其他家的有什么区别？"
+  - name: scenario
+    required: false
+    default: ""
+    description: 销售场景
+    example: "电话销售"
+  - name: user_facts
+    required: false
+    default: ""
+    description: 已知的用户画像信息
+    example: "用户对价格敏感，之前购买过竞品"
+  - name: product_info
+    required: false
+    default: ""
+    description: 产品信息
+    example: "康康AI智能客服系统"
+
+template: |
+  你是一位资深销售培训师。请根据以下信息，为销售人员推荐最合适的应答话术。
+
+  客户问题：{{ customer_question }}
+  {% if scenario %}销售场景：{{ scenario }}{% endif %}
+  {% if user_facts %}用户画像：{{ user_facts }}{% endif %}
+  {% if product_info %}产品信息：{{ product_info }}{% endif %}
+
+  请输出：
+  1. 推荐话术（直接可用的完整话术）
+  2. 话术要点（3-5个关键点）
+  3. 注意事项（如需要规避的话题）
+  4. 后续引导建议

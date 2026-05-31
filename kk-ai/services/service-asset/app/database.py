@@ -1,0 +1,83 @@
+"""SQLite database initialization and connection management."""
+
+import logging
+import os
+import sqlite3
+import threading
+from contextlib import contextmanager
+
+from app.config import get_settings
+
+logger = logging.getLogger("service-asset.database")
+
+_DB_LOCK = threading.Lock()
+
+
+def init_db(db_path: str | None = None) -> None:
+    """Initialize SQLite database with required tables."""
+    settings = get_settings()
+    path = db_path or settings.DB_PATH
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with _DB_LOCK:
+        conn = sqlite3.connect(path)
+        conn.execute("PRAGMA journal_mode=WAL")
+
+        # Assets table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS assets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                asset_type TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                file_size INTEGER,
+                mime_type TEXT,
+                description TEXT,
+                tags TEXT,
+                category TEXT,
+                status TEXT DEFAULT 'uploaded',
+                usage_count INTEGER DEFAULT 0,
+                project_ids TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category)
+        """)
+
+        # Asset usage log
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS asset_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                asset_id TEXT NOT NULL,
+                project_id TEXT,
+                action TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+        logger.info("Database initialized: %s", path)
+
+
+@contextmanager
+def get_db_connection(db_path: str | None = None):
+    """Get a database connection context manager."""
+    settings = get_settings()
+    path = db_path or settings.DB_PATH
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()

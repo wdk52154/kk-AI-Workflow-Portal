@@ -1,0 +1,37 @@
+id: sales_objection_handler
+name: 销售异议处理专家
+category: sales
+version: 1.0.0
+description: 针对客户异议，提供专业的处理话术和策略
+author: sales-team
+tags: [销售, 异议处理]
+
+variables:
+  - name: objection
+    required: true
+    description: 客户提出的异议
+    example: "你们的价格太贵了，别家便宜很多"
+  - name: product
+    required: false
+    default: ""
+    description: 产品名称
+    example: "康康AI智能客服"
+  - name: context
+    required: false
+    default: ""
+    description: 对话上下文
+    example: "客户已经了解产品功能，正在比价阶段"
+
+template: |
+  你是一位销售异议处理专家。请针对以下客户异议，提供专业的处理方案。
+
+  客户异议：{{ objection }}
+  {% if product %}产品：{{ product }}{% endif %}
+  {% if context %}上下文：{{ context }}{% endif %}
+
+  请输出：
+  1. 异议类型分析（价格/质量/时机/信任等）
+  2. 处理策略（核心思路）
+  3. 推荐话术（3种不同风格的应对话术）
+  4. 转化引导（如何将异议转化为成交机会）
+  5. 禁忌事项（绝对不要说的话或做的事）

@@ -1,0 +1,41 @@
+id: asset_description_enhance
+name: 素材描述 AI 增强
+category: asset
+version: 1.0.0
+description: 基于素材基础信息，AI 生成更丰富、更利于检索的素材描述
+author: asset-team
+tags: [素材, 描述, 增强]
+
+variables:
+  - name: asset_name
+    required: true
+    description: 素材名称
+    example: "夏季大促海报主图"
+  - name: asset_type
+    required: true
+    description: 素材类型
+    example: "image"
+  - name: original_description
+    required: false
+    default: ""
+    description: 原始描述
+    example: "一张促销海报"
+  - name: tags
+    required: false
+    default: ""
+    description: 现有标签
+    example: "促销,夏季,海报"
+
+template: |
+  你是一位资深的电商运营文案。请为以下素材生成专业、丰富、利于搜索的描述和标签。
+
+  素材名称：{{ asset_name }}
+  素材类型：{{ asset_type }}
+  {% if original_description %}原始描述：{{ original_description }}{% endif %}
+  {% if tags %}现有标签：{{ tags }}{% endif %}
+
+  请输出：
+  1. 增强描述（100-200字，包含使用场景、视觉特征、情感诉求）
+  2. 推荐标签（10-15个，覆盖风格、场景、节日、品类、用途等维度）
+  3. 搜索关键词（5-8个用户可能搜索的词）
+  4. 适用平台建议（如：淘宝主图、抖音封面、朋友圈海报等）

@@ -80,18 +80,46 @@ async def sales_query(body: SalesQueryRequest):
                 recommended.append(ScriptResponse(**script))
                 store.increment_usage(sid)
 
+    # 从用户事实中提取禁忌关键词（如过敏源、不喜欢的产品等）
+    forbidden_keywords = []
+    for fact in user_facts:
+        fact_lower = fact.lower()
+        if "过敏" in fact_lower:
+            # 提取过敏源："用户对芒果过敏" → "芒果"
+            import re
+            match = re.search(r'对(\w+)过敏', fact)
+            if match:
+                forbidden_keywords.append(match.group(1))
+        if "不喜欢" in fact_lower or "讨厌" in fact_lower:
+            import re
+            match = re.search(r'不喜欢(\w+)|讨厌(\w+)', fact)
+            if match:
+                kw = match.group(1) or match.group(2)
+                if kw:
+                    forbidden_keywords.append(kw)
+
+    # 过滤包含禁忌关键词的推荐话术
+    filtered_recommended = []
+    for script in recommended:
+        content_lower = script.content.lower()
+        if not any(kw in content_lower for kw in forbidden_keywords):
+            filtered_recommended.append(script)
+
     # 异议处理建议
     objection_handler = None
-    for fact in user_facts:
-        if "过敏" in fact or "不喜欢" in fact:
-            objection_handler = f"注意：客户画像显示「{fact}」，推荐时自动规避相关产品。"
-            break
+    if forbidden_keywords:
+        objection_handler = f"注意：客户画像显示「{'; '.join(user_facts)}」，已自动规避含 {'/'.join(forbidden_keywords)} 的相关推荐。"
+    else:
+        for fact in user_facts:
+            if "过敏" in fact or "不喜欢" in fact:
+                objection_handler = f"注意：客户画像显示「{fact}」，推荐时自动规避相关产品。"
+                break
 
     return SalesQueryResponse(
-        recommended_scripts=recommended[:5],
+        recommended_scripts=filtered_recommended[:5],
         objection_handler=objection_handler,
         user_facts=user_facts,
-        confidence=min(0.7 + len(recommended) * 0.05, 0.95)
+        confidence=min(0.7 + len(filtered_recommended) * 0.05, 0.95)
     )
 
 # ---- Roleplay ----

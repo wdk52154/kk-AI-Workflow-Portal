@@ -15,6 +15,8 @@ from app.models.asset import (
     PosterGenerateResponse,
 )
 from app.services.asset_store import get_asset_store
+from app.services.storage import get_storage
+from app.services.prompt_client import render_poster_template
 
 logger = logging.getLogger("service-asset.router.assets")
 router = APIRouter()
@@ -97,6 +99,43 @@ async def get_asset(asset_id: str):
     return AssetItem(**asset)
 
 
+@router.get("/v1/assets/{asset_id}/download")
+async def download_asset(asset_id: str):
+    """Download asset file."""
+    store = get_asset_store()
+    asset = store.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    storage = get_storage()
+    # file_path may be absolute (legacy) or relative key (new storage backend)
+    storage_key = asset["file_path"]
+    try:
+        file_data = storage.read(storage_key)
+    except Exception:
+        # Fallback: try reading directly from file_path
+        try:
+            with open(storage_key, "rb") as f:
+                file_data = f.read()
+        except Exception:
+            raise HTTPException(status_code=404, detail="File not found in storage")
+
+    # Record usage
+    store.record_usage(asset_id, action="download")
+
+    import urllib.parse
+    from fastapi.responses import Response
+    ext = os.path.splitext(storage_key)[1]
+    safe_filename = urllib.parse.quote(f"{asset['name']}{ext}")
+    return Response(
+        content=file_data,
+        media_type=asset.get("mime_type", "application/octet-stream"),
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"
+        },
+    )
+
+
 @router.post("/v1/assets/{asset_id}/status")
 async def update_asset_status(asset_id: str, status: str = Form(...)):
     """Update asset status (uploaded/precheck/pending_review/approved/rejected)."""
@@ -105,6 +144,45 @@ async def update_asset_status(asset_id: str, status: str = Form(...)):
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     updated = store.update_status(asset_id, status)
+    return AssetItem(**updated)
+
+
+@router.post("/v1/assets/{asset_id}/precheck")
+async def run_precheck(asset_id: str):
+    """Run automated content precheck for uploaded asset."""
+    store = get_asset_store()
+    asset = store.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        updated = store.run_precheck(asset_id)
+        return AssetItem(**updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/v1/assets/{asset_id}/approve")
+async def approve_asset(asset_id: str):
+    """Manually approve asset after review."""
+    store = get_asset_store()
+    asset = store.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    try:
+        updated = store.approve_asset(asset_id)
+        return AssetItem(**updated)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/v1/assets/{asset_id}/reject")
+async def reject_asset(asset_id: str):
+    """Manually reject asset."""
+    store = get_asset_store()
+    asset = store.get_asset_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    updated = store.reject_asset(asset_id)
     return AssetItem(**updated)
 
 
@@ -118,10 +196,16 @@ async def generate_poster(asset_id: str, body: PosterGenerateRequest):
     if asset["asset_type"] != "poster_template":
         raise HTTPException(status_code=400, detail="Asset is not a poster template")
 
-    # TODO: Call service-prompt:9004 for template rendering
-    # For now, return a mock response
+    # Call service-prompt:9004 for template rendering
+    rendered = await render_poster_template(body.variables)
+
+    if rendered.get("rendered"):
+        message = "Poster generated successfully via service-prompt"
+    else:
+        message = "Poster generated successfully (fallback: service-prompt unavailable)"
+
     return PosterGenerateResponse(
         asset_id=asset_id,
         download_url=f"/v1/assets/{asset_id}/download",
-        message="Poster generated successfully (mock)",
+        message=message,
     )

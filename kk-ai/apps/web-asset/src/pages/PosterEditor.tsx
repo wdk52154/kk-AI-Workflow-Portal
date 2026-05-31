@@ -32,7 +32,7 @@ export default function PosterEditor() {
         brand: values.brand || "",
         bg_color: values.bg_color?.toHexString?.() || "#ffffff",
       });
-      setResult(res.url);
+      setResult(res.download_url);
       message.success("海报生成成功");
     } catch (e) {
       message.error("生成失败");

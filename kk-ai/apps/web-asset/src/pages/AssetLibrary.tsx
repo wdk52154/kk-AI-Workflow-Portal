@@ -9,18 +9,47 @@ import {
   Pagination,
   Space,
   message,
+  Popconfirm,
 } from "antd";
-import { SearchOutlined, DownloadOutlined } from "@ant-design/icons";
+import {
+  SearchOutlined,
+  DownloadOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  SafetyOutlined,
+} from "@ant-design/icons";
 import type { Asset, AssetSearchResponse } from "../services/asset";
-import { fetchAssets } from "../services/asset";
+import {
+  fetchAssets,
+  precheckAsset,
+  approveAsset,
+  rejectAsset,
+} from "../services/asset";
 
 const { Option } = Select;
+
+const STATUS_COLORS: Record<string, string> = {
+  uploaded: "default",
+  precheck: "processing",
+  pending_review: "warning",
+  approved: "success",
+  rejected: "error",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  uploaded: "已上传",
+  precheck: "预检中",
+  pending_review: "待审核",
+  approved: "已上架",
+  rejected: "已拒绝",
+};
 
 export default function AssetLibrary() {
   const [query, setQuery] = useState("");
   const [assetType, setAssetType] = useState<string | undefined>(undefined);
+  const [status, setStatus] = useState<string | undefined>(undefined);
   const [data, setData] = useState<AssetSearchResponse>({
-    data: [],
+    items: [],
     total: 0,
     page: 1,
     page_size: 12,
@@ -33,6 +62,7 @@ export default function AssetLibrary() {
       const res = await fetchAssets({
         q: query || undefined,
         asset_type: assetType,
+        status: status,
         page,
         page_size: 12,
       });
@@ -48,6 +78,19 @@ export default function AssetLibrary() {
     load(1);
   }, []);
 
+  const handleAction = async (
+    action: () => Promise<Asset>,
+    successMsg: string,
+  ) => {
+    try {
+      await action();
+      message.success(successMsg);
+      load(data.page);
+    } catch (e) {
+      message.error("操作失败");
+    }
+  };
+
   const columns = [
     { title: "名称", dataIndex: "name", key: "name" },
     { title: "类型", dataIndex: "asset_type", key: "type" },
@@ -59,7 +102,14 @@ export default function AssetLibrary() {
       render: (tags: string[]) =>
         tags?.map((t) => <Tag key={t}>{t}</Tag>) || null,
     },
-    { title: "状态", dataIndex: "status", key: "status" },
+    {
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      render: (s: string) => (
+        <Tag color={STATUS_COLORS[s] || "default"}>{STATUS_LABELS[s] || s}</Tag>
+      ),
+    },
     {
       title: "操作",
       key: "action",
@@ -69,11 +119,46 @@ export default function AssetLibrary() {
             size="small"
             icon={<DownloadOutlined />}
             onClick={() => {
-              window.open(`/v1/assets/${record.id}/download`, "_blank");
+              window.open(`/v1/assets/${record.asset_id}/download`, "_blank");
             }}
           >
             下载
           </Button>
+          {record.status === "uploaded" && (
+            <Button
+              size="small"
+              icon={<SafetyOutlined />}
+              onClick={() =>
+                handleAction(() => precheckAsset(record.asset_id), "预检完成")
+              }
+            >
+              预检
+            </Button>
+          )}
+          {record.status === "pending_review" && (
+            <>
+              <Button
+                size="small"
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                onClick={() =>
+                  handleAction(() => approveAsset(record.asset_id), "审核通过")
+                }
+              >
+                通过
+              </Button>
+              <Popconfirm
+                title="确认拒绝该素材？"
+                onConfirm={() =>
+                  handleAction(() => rejectAsset(record.asset_id), "已拒绝")
+                }
+              >
+                <Button size="small" danger icon={<CloseCircleOutlined />}>
+                  拒绝
+                </Button>
+              </Popconfirm>
+            </>
+          )}
         </Space>
       ),
     },
@@ -101,7 +186,20 @@ export default function AssetLibrary() {
           >
             <Option value="image">图片</Option>
             <Option value="video">视频</Option>
-            <Option value="poster">海报模板</Option>
+            <Option value="poster_template">海报模板</Option>
+          </Select>
+          <Select
+            placeholder="审核状态"
+            allowClear
+            style={{ width: 150 }}
+            value={status}
+            onChange={setStatus}
+          >
+            <Option value="uploaded">已上传</Option>
+            <Option value="precheck">预检中</Option>
+            <Option value="pending_review">待审核</Option>
+            <Option value="approved">已上架</Option>
+            <Option value="rejected">已拒绝</Option>
           </Select>
           <Button type="primary" onClick={() => load(1)}>
             搜索
@@ -111,9 +209,9 @@ export default function AssetLibrary() {
 
       <Table
         loading={loading}
-        dataSource={data.data}
+        dataSource={data.items}
         columns={columns}
-        rowKey="id"
+        rowKey="asset_id"
         pagination={false}
       />
       <div style={{ marginTop: 16, textAlign: "right" }}>

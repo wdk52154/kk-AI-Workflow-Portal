@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from app.config import get_settings
 from app.database import get_db_connection
+from app.services.storage import get_storage
 
 logger = logging.getLogger("service-asset.asset_store")
 
@@ -16,25 +17,22 @@ _asset_store: "AssetStore | None" = None
 
 
 class AssetStore:
-    """SQLite-backed asset store with file system storage."""
+    """SQLite-backed asset store with pluggable storage backend."""
 
     def __init__(self):
         settings = get_settings()
         self.storage_path = settings.STORAGE_PATH
         os.makedirs(self.storage_path, exist_ok=True)
+        self.storage = get_storage()
 
     def _generate_asset_id(self) -> str:
         return f"asset_{uuid.uuid4().hex[:12]}"
 
     def _save_file(self, asset_id: str, file_data: bytes, filename: str) -> str:
-        """Save file to storage and return relative path."""
+        """Save file to storage backend and return storage key."""
         ext = os.path.splitext(filename)[1]
-        subdir = os.path.join(self.storage_path, asset_id[:8])
-        os.makedirs(subdir, exist_ok=True)
-        file_path = os.path.join(subdir, f"{asset_id}{ext}")
-        with open(file_path, "wb") as f:
-            f.write(file_data)
-        return file_path
+        storage_key = f"{asset_id[:8]}/{asset_id}{ext}"
+        return self.storage.save(storage_key, file_data)
 
     def create_asset(
         self,
@@ -144,8 +142,12 @@ class AssetStore:
         return items, total
 
     def update_status(self, asset_id: str, status: str) -> dict | None:
-        """Update asset status."""
+        """Update asset status with audit workflow tracking."""
         now = datetime.now(timezone.utc).isoformat()
+        valid_statuses = ["uploaded", "precheck", "pending_review", "approved", "rejected"]
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid status: {status}. Must be one of {valid_statuses}")
+
         with get_db_connection() as conn:
             conn.execute(
                 "UPDATE assets SET status = ?, updated_at = ? WHERE asset_id = ?",
@@ -153,6 +155,44 @@ class AssetStore:
             )
             conn.commit()
         return self.get_asset_by_id(asset_id)
+
+    def run_precheck(self, asset_id: str) -> dict:
+        """Run automated precheck (machine review) for uploaded asset.
+        
+        Simulates content safety check (NSFW/violence detection).
+        In production, this would call an AI content moderation API.
+        """
+        asset = self.get_asset_by_id(asset_id)
+        if not asset:
+            raise ValueError("Asset not found")
+        if asset["status"] != "uploaded":
+            raise ValueError(f"Cannot precheck asset with status: {asset['status']}")
+
+        # Mock precheck: randomly approve or flag for review
+        # In production: call content moderation API
+        import random
+        precheck_passed = random.random() > 0.1  # 90% pass rate
+
+        if precheck_passed:
+            return self.update_status(asset_id, "pending_review")
+        else:
+            return self.update_status(asset_id, "rejected")
+
+    def approve_asset(self, asset_id: str) -> dict:
+        """Manually approve asset after review."""
+        asset = self.get_asset_by_id(asset_id)
+        if not asset:
+            raise ValueError("Asset not found")
+        if asset["status"] not in ["pending_review", "uploaded"]:
+            raise ValueError(f"Cannot approve asset with status: {asset['status']}")
+        return self.update_status(asset_id, "approved")
+
+    def reject_asset(self, asset_id: str) -> dict:
+        """Manually reject asset after review."""
+        asset = self.get_asset_by_id(asset_id)
+        if not asset:
+            raise ValueError("Asset not found")
+        return self.update_status(asset_id, "rejected")
 
     def record_usage(self, asset_id: str, project_id: str | None = None, action: str = "download") -> None:
         """Record asset usage."""
@@ -169,7 +209,7 @@ class AssetStore:
             conn.commit()
 
     def get_stats(self) -> dict:
-        """Get asset statistics."""
+        """Get asset statistics including reuse rate."""
         with get_db_connection() as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM assets")
             total_assets = cursor.fetchone()[0]
@@ -190,12 +230,33 @@ class AssetStore:
             )
             recent_uploads = cursor.fetchone()[0]
 
+            # Reuse rate calculation
+            cursor = conn.execute("SELECT COUNT(*) FROM assets WHERE usage_count > 0")
+            reused_count = cursor.fetchone()[0]
+            reuse_rate = round(reused_count / total_assets * 100, 1) if total_assets > 0 else 0.0
+
+            # Average reuse multiplier (total usages / reused assets)
+            cursor = conn.execute(
+                "SELECT SUM(usage_count) FROM assets WHERE usage_count > 0"
+            )
+            total_usages = cursor.fetchone()[0] or 0
+            avg_reuse_multiplier = round(total_usages / reused_count, 1) if reused_count > 0 else 0.0
+
+            # Approved assets count
+            cursor = conn.execute("SELECT COUNT(*) FROM assets WHERE status = 'approved'")
+            approved_count = cursor.fetchone()[0]
+
         return {
             "total_assets": total_assets,
             "total_by_type": total_by_type,
             "total_by_status": total_by_status,
             "top_reused": top_reused,
             "recent_uploads": recent_uploads,
+            "reuse_rate": reuse_rate,
+            "avg_reuse_multiplier": avg_reuse_multiplier,
+            "approved_count": approved_count,
+            "reused_count": reused_count,
+            "total_usages": total_usages,
         }
 
     def _row_to_dict(self, row: sqlite3.Row) -> dict:

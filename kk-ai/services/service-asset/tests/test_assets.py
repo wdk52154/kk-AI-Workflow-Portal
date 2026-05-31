@@ -85,6 +85,66 @@ def test_asset_stats(client: TestClient) -> None:
     assert data["total_assets"] >= 3
 
 
+def test_download_asset(client: TestClient) -> None:
+    """Test downloading an asset."""
+    upload_resp = client.post(
+        "/v1/assets",
+        data={"name": "下载测试", "asset_type": "image"},
+        files={"file": ("dl.png", b"download-test-data", "image/png")},
+    )
+    asset_id = upload_resp.json()["asset_id"]
+
+    response = client.get(f"/v1/assets/{asset_id}/download")
+    assert response.status_code == 200
+    assert response.content == b"download-test-data"
+
+
+def test_precheck_workflow(client: TestClient) -> None:
+    """Test asset audit workflow: uploaded → precheck → approved."""
+    upload_resp = client.post(
+        "/v1/assets",
+        data={"name": "审核测试", "asset_type": "image"},
+        files={"file": ("audit.png", b"data", "image/png")},
+    )
+    asset_id = upload_resp.json()["asset_id"]
+    assert upload_resp.json()["status"] == "uploaded"
+
+    # Step 1: Run precheck
+    precheck_resp = client.post(f"/v1/assets/{asset_id}/precheck")
+    assert precheck_resp.status_code == 200
+    status_after_precheck = precheck_resp.json()["status"]
+    assert status_after_precheck in ["pending_review", "rejected"]
+
+    # Step 2: Approve (if passed precheck)
+    if status_after_precheck == "pending_review":
+        approve_resp = client.post(f"/v1/assets/{asset_id}/approve")
+        assert approve_resp.status_code == 200
+        assert approve_resp.json()["status"] == "approved"
+
+
+def test_reuse_rate_in_stats(client: TestClient) -> None:
+    """Test reuse rate and multiplier in stats."""
+    # Upload and download to create usage
+    upload_resp = client.post(
+        "/v1/assets",
+        data={"name": "复用测试", "asset_type": "image"},
+        files={"file": ("reuse.png", b"data", "image/png")},
+    )
+    asset_id = upload_resp.json()["asset_id"]
+
+    # Download to increase usage
+    client.get(f"/v1/assets/{asset_id}/download")
+    client.get(f"/v1/assets/{asset_id}/download")
+
+    response = client.get("/v1/assets/stats")
+    assert response.status_code == 200
+    data = response.json()
+    assert "reuse_rate" in data
+    assert "avg_reuse_multiplier" in data
+    assert "total_usages" in data
+    assert data["total_usages"] >= 2
+
+
 def test_health(client: TestClient) -> None:
     """Test health check."""
     response = client.get("/health")

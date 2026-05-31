@@ -62,3 +62,8 @@ class AssetStatsResponse(BaseModel):
     total_by_status: dict[str, int]
     top_reused: list[dict[str, Any]]
     recent_uploads: int
+    reuse_rate: float
+    avg_reuse_multiplier: float
+    approved_count: int
+    reused_count: int
+    total_usages: int

@@ -19,7 +19,7 @@ export default function Dashboard() {
     Promise.all([fetchAssetStats(), fetchAssets({ page_size: 5 })])
       .then(([s, list]) => {
         setStats(s);
-        setTopAssets(list.data || []);
+        setTopAssets(list.items || []);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -44,7 +44,7 @@ export default function Dashboard() {
           <Card loading={loading}>
             <Statistic
               title="素材总量"
-              value={stats?.total_count || 0}
+              value={stats?.total_assets || 0}
               prefix={<FileImageOutlined />}
             />
           </Card>
@@ -53,7 +53,7 @@ export default function Dashboard() {
           <Card loading={loading}>
             <Statistic
               title="图片素材"
-              value={stats?.by_type?.image || 0}
+              value={stats?.total_by_type?.image || 0}
               prefix={<FileTextOutlined />}
             />
           </Card>
@@ -62,7 +62,7 @@ export default function Dashboard() {
           <Card loading={loading}>
             <Statistic
               title="视频素材"
-              value={stats?.by_type?.video || 0}
+              value={stats?.total_by_type?.video || 0}
               prefix={<SyncOutlined />}
             />
           </Card>
@@ -89,24 +89,68 @@ export default function Dashboard() {
       </Card>
 
       <Row gutter={16} style={{ marginTop: 24 }}>
+        <Col span={6}>
+          <Card loading={loading}>
+            <Statistic
+              title="已上架素材"
+              value={stats?.approved_count || 0}
+              prefix={<FileTextOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card loading={loading}>
+            <Statistic
+              title="复用素材数"
+              value={stats?.reused_count || 0}
+              prefix={<SyncOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card loading={loading}>
+            <Statistic
+              title="平均复用倍数"
+              value={stats?.avg_reuse_multiplier || 0}
+              suffix="x"
+              prefix={<RiseOutlined />}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card loading={loading}>
+            <Statistic
+              title="总使用次数"
+              value={stats?.total_usages || 0}
+              prefix={<RiseOutlined />}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={16} style={{ marginTop: 24 }}>
         <Col span={12}>
-          <Card title="按分类分布" loading={loading}>
-            {stats?.by_category &&
-              Object.entries(stats.by_category).map(([k, v]) => (
-                <p key={k}>
-                  {k}: {v}
-                </p>
-              ))}
+          <Card title="按类型分布" loading={loading}>
+            {stats?.total_by_type &&
+              Object.entries(stats.total_by_type).map(
+                ([k, v]: [string, any]) => (
+                  <p key={k}>
+                    {k}: {v}
+                  </p>
+                ),
+              )}
           </Card>
         </Col>
         <Col span={12}>
           <Card title="按状态分布" loading={loading}>
-            {stats?.by_status &&
-              Object.entries(stats.by_status).map(([k, v]) => (
-                <p key={k}>
-                  {k}: {v}
-                </p>
-              ))}
+            {stats?.total_by_status &&
+              Object.entries(stats.total_by_status).map(
+                ([k, v]: [string, any]) => (
+                  <p key={k}>
+                    {k}: {v}
+                  </p>
+                ),
+              )}
           </Card>
         </Col>
       </Row>

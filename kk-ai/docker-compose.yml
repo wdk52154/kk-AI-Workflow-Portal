@@ -154,6 +154,57 @@ services:
       - ai-platform
     restart: unless-stopped
 
+  service-asset:
+    build:
+      context: ./services/service-asset
+      dockerfile: Dockerfile
+    container_name: ai-service-asset
+    ports:
+      - "9006:9006"
+    env_file: .env
+    environment:
+      - ASSET_PORT=9006
+      - ASSET_PROMPT_SERVICE_URL=http://service-prompt:9004
+      - ASSET_STORAGE_BACKEND=local
+    depends_on:
+      service-prompt:
+        condition: service_healthy
+    volumes:
+      - service-asset-data:/app/data
+      - service-asset-storage:/app/data/storage
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
+  service-sales:
+    build:
+      context: ./services/service-sales
+      dockerfile: Dockerfile
+    container_name: ai-service-sales
+    ports:
+      - "9007:9007"
+    env_file: .env
+    environment:
+      - SALES_PORT=9007
+      - SALES_RAG_SERVICE_URL=http://service-rag:9002
+      - SALES_MEMORY_SERVICE_URL=http://service-memory:9003
+      - SALES_DATA_SERVICE_URL=http://service-data:9005
+      - SALES_PROMPT_SERVICE_URL=http://service-prompt:9004
+    depends_on:
+      service-rag:
+        condition: service_healthy
+      service-memory:
+        condition: service_healthy
+      service-data:
+        condition: service_healthy
+      service-prompt:
+        condition: service_healthy
+    volumes:
+      - service-sales-data:/app/data
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
   mcp-hub:
     build:
       context: ./services/mcp-hub
@@ -198,6 +249,36 @@ services:
       - ai-platform
     restart: unless-stopped
 
+  web-asset:
+    build:
+      context: ./apps/web-asset
+      dockerfile: Dockerfile
+    container_name: ai-web-asset
+    ports:
+      - "5174:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:9006
+    depends_on:
+      - service-asset
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
+  web-sales:
+    build:
+      context: ./apps/web-sales
+      dockerfile: Dockerfile
+    container_name: ai-web-sales
+    ports:
+      - "5175:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:9007
+    depends_on:
+      - service-sales
+    networks:
+      - ai-platform
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   redis-data:
@@ -206,6 +287,9 @@ volumes:
   service-memory-data:
   service-data-data:
   service-prompt-data:
+  service-asset-data:
+  service-asset-storage:
+  service-sales-data:
 
 networks:
   ai-platform:

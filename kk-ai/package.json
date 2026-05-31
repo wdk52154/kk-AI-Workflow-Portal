@@ -5,6 +5,12 @@
   "description": "康康 AI 公司全栈 AI 系统 Monorepo",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:frontends": "pnpm -r --parallel --filter='./apps/*' dev",
+    "dev:web-admin": "pnpm --filter @kk-ai/web-admin dev",
+    "dev:web-asset": "pnpm --filter @kk-ai/web-asset dev",
+    "dev:web-sales": "pnpm --filter @kk-ai/web-sales dev",
+    "dev:backends": "python scripts/start-all.py",
+    "dev:frontends:py": "python scripts/start-frontends.py",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

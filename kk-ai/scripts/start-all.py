@@ -152,21 +152,30 @@ def main():
 
     # 阶段 5: 启动前端
     print("\n📦 Phase 5: 启动前端...")
-    web_dir = proj_root / "apps" / "web-admin"
-    if (web_dir / "package.json").exists():
-        web_log = proj_root / "logs" / "web-admin.log"
-        web_log_fp = open(web_log, "a")
-        web_proc = subprocess.Popen(
-            ["pnpm", "dev"],
-            cwd=web_dir,
-            stdout=web_log_fp,
-            stderr=subprocess.STDOUT,
-        )
-        processes.append(("web-admin", web_proc))
-        print(f"  ✅ web-admin 已启动 (pnpm dev)")
-        print(f"     访问: http://localhost:5173")
-    else:
-        print("  ⚠️ 未找到 web-admin")
+    web_apps = [
+        ("web-admin", 5173),
+        ("web-asset", 5174),
+        ("web-sales", 5175),
+    ]
+    for web_name, web_port in web_apps:
+        web_dir = proj_root / "apps" / web_name
+        if (web_dir / "package.json").exists():
+            if check_port(web_port):
+                print(f"  ⚠️ {web_name} 端口 {web_port} 已被占用，跳过")
+                continue
+            web_log = proj_root / "logs" / f"{web_name}.log"
+            web_log_fp = open(web_log, "a")
+            web_proc = subprocess.Popen(
+                ["pnpm", "dev"],
+                cwd=web_dir,
+                stdout=web_log_fp,
+                stderr=subprocess.STDOUT,
+            )
+            processes.append((web_name, web_proc))
+            print(f"  ✅ {web_name} 已启动 (pnpm dev)")
+            print(f"     访问: http://localhost:{web_port}")
+        else:
+            print(f"  ⚠️ 未找到 {web_name}")
 
     # 状态汇总
     print("\n" + "=" * 50)
@@ -180,11 +189,14 @@ def main():
         if not ok:
             all_ok = False
 
-    print(f"\n  web-admin            端口 5173  {'✅ 运行中' if (web_dir / 'package.json').exists() else '❌ 未启动'}")
+    for web_name, web_port in web_apps:
+        ok = check_port(web_port)
+        status = "✅ 运行中" if ok else "❌ 未启动"
+        print(f"  {web_name:20s} 端口 {web_port:4d}  {status}")
 
     print("\n" + "=" * 50)
     if all_ok:
-        print("🎉 全部后端服务启动成功！")
+        print("🎉 全部服务启动成功！")
     else:
         print("⚠️ 部分服务未启动，请查看 logs/ 目录")
     print("=" * 50)
